@@ -21,6 +21,7 @@ import javax.swing.SwingConstants;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.ui.FontManager;
+import net.runelite.client.util.LinkBrowser;
 
 /**
  * Side panel that lists every tracked item with its buy price, alch value,
@@ -147,6 +148,31 @@ class GeAlchProfitPanel extends PluginPanel
 			magic.add(barWrap, BorderLayout.SOUTH);
 		}
 		sectionsPanel.add(section("Magic XP", magic));
+
+		// --- Stats sync box (only when upload is enabled) ---
+		if (plugin.uploadEnabled())
+		{
+			final JPanel sync = new JPanel(new BorderLayout());
+			sync.setOpaque(false);
+			final String status = plugin.lastSyncStatus();
+			sync.add(summaryRow("Status", status.isEmpty() ? "Waiting…" : status, Color.LIGHT_GRAY),
+				BorderLayout.NORTH);
+
+			final String url = plugin.statsDashboardUrl();
+			if (url != null && !url.trim().isEmpty())
+			{
+				final JButton open = new JButton("Open dashboard");
+				open.addActionListener(e -> LinkBrowser.browse(url.trim()));
+				final JPanel wrap = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+				wrap.setOpaque(false);
+				wrap.setBorder(BorderFactory.createEmptyBorder(8, 0, 0, 0));
+				wrap.add(open);
+				sync.add(wrap, BorderLayout.SOUTH);
+			}
+
+			sectionsPanel.add(Box.createVerticalStrut(8));
+			sectionsPanel.add(section("Stats sync", sync));
+		}
 
 		boolean any = false;
 		for (ItemRecord r : recs)

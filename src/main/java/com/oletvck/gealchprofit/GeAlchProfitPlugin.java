@@ -3,15 +3,27 @@ package com.oletvck.gealchprofit;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.google.inject.Provides;
+import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import javax.inject.Inject;
 import javax.swing.SwingUtilities;
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GrandExchangeOffer;
@@ -69,6 +81,19 @@ public class GeAlchProfitPlugin extends Plugin
 
 	@Inject
 	private ClientToolbar clientToolbar;
+
+	@Inject
+	private OkHttpClient okHttpClient;
+
+	@Inject
+	private ScheduledExecutorService executor;
+
+	private static final MediaType JSON_MEDIA = MediaType.parse("application/json; charset=utf-8");
+
+	private ScheduledFuture<?> uploadTask;
+
+	/** Human-readable status of the last stats upload, shown in the panel. */
+	private volatile String lastSyncStatus = "";
 
 	/** itemId -> record. Mutated on the client thread, read (snapshotted) on the EDT. */
 	private final Map<Integer, ItemRecord> records = new ConcurrentHashMap<>();
@@ -131,12 +156,20 @@ public class GeAlchProfitPlugin extends Plugin
 
 		clientThread.invokeLater(this::refreshNatureCost);
 		refreshPanel();
+
+		// Periodically upload a stats snapshot (no-op unless the user enables it).
+		uploadTask = executor.scheduleWithFixedDelay(this::uploadStatsIfEnabled, 60, 300, TimeUnit.SECONDS);
 	}
 
 	@Override
 	protected void shutDown()
 	{
 		saveRecords();
+		if (uploadTask != null)
+		{
+			uploadTask.cancel(false);
+			uploadTask = null;
+		}
 		clientToolbar.removeNavigation(navButton);
 		panel = null;
 		navButton = null;
@@ -554,6 +587,115 @@ public class GeAlchProfitPlugin extends Plugin
 		{
 			log.warn("Failed to load GE Alch Profit records", e);
 		}
+	}
+
+	// ------------------------------------------------------------------
+	// Optional stats upload (opt-in, see config "Stats sync" section)
+	// ------------------------------------------------------------------
+
+	String lastSyncStatus()
+	{
+		return lastSyncStatus;
+	}
+
+	boolean uploadEnabled()
+	{
+		return config.uploadStats();
+	}
+
+	String statsDashboardUrl()
+	{
+		return config.statsApiUrl();
+	}
+
+	/** Builds the cumulative-stats JSON payload. Safe to call off the client thread. */
+	private String buildSnapshotJson()
+	{
+		long totalCasts = 0;
+		long totalProfit = 0;
+		final List<Map<String, Object>> items = new ArrayList<>();
+		for (ItemRecord r : records.values())
+		{
+			totalCasts += r.getAlchCount();
+			final Integer per = profitPerAlch(r);
+			final long itemProfit = per == null ? 0 : (long) per * r.getAlchCount();
+			totalProfit += itemProfit;
+			if (r.getAlchCount() > 0)
+			{
+				final Map<String, Object> m = new LinkedHashMap<>();
+				m.put("itemId", r.getItemId());
+				m.put("name", r.getName());
+				m.put("casts", r.getAlchCount());
+				m.put("profit", itemProfit);
+				items.add(m);
+			}
+		}
+
+		final Map<String, Object> payload = new LinkedHashMap<>();
+		payload.put("total_casts", totalCasts);
+		payload.put("total_profit", totalProfit);
+		payload.put("total_nature_cost", totalCasts * (long) natureCostSnapshot);
+		payload.put("magic_xp", currentMagicXp);
+		payload.put("magic_level", currentMagicLevel);
+		payload.put("items", items);
+		return gson.toJson(payload);
+	}
+
+	private void uploadStatsIfEnabled()
+	{
+		if (!config.uploadStats())
+		{
+			return;
+		}
+
+		final String url = config.statsApiUrl().trim();
+		final String key = config.statsApiKey().trim();
+		if (url.isEmpty() || key.isEmpty())
+		{
+			lastSyncStatus = "Set server URL + API key";
+			refreshPanel();
+			return;
+		}
+
+		final String json;
+		try
+		{
+			json = buildSnapshotJson();
+		}
+		catch (Exception e)
+		{
+			log.warn("Failed to build stats snapshot", e);
+			return;
+		}
+
+		final String base = url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
+		final Request request = new Request.Builder()
+			.url(base + "/v1/stats")
+			.addHeader("Authorization", "Bearer " + key)
+			.post(RequestBody.create(JSON_MEDIA, json))
+			.build();
+
+		okHttpClient.newCall(request).enqueue(new Callback()
+		{
+			@Override
+			public void onFailure(Call call, IOException e)
+			{
+				lastSyncStatus = "Upload failed";
+				refreshPanel();
+			}
+
+			@Override
+			public void onResponse(Call call, Response response)
+			{
+				try (Response r = response)
+				{
+					lastSyncStatus = r.isSuccessful()
+						? "Synced"
+						: ("Upload error (HTTP " + r.code() + ")");
+				}
+				refreshPanel();
+			}
+		});
 	}
 
 	/** A small gold-coin style nav icon drawn at runtime (no resource file needed). */

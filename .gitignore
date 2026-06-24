@@ -18,3 +18,7 @@ Thumbs.db
 # Local dev scaffolding generated in this workspace (portable JDK/Gradle,
 # helper scripts and their logs). These must NOT be published.
 _*
+
+# Backend service lives here during development but is a separate project;
+# it must NOT be published with the plugin.
+server/

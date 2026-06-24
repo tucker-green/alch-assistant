@@ -74,4 +74,51 @@ public interface GeAlchProfitConfig extends Config
 	{
 		return false;
 	}
+
+	@ConfigSection(
+		name = "Stats sync",
+		description = "Optionally upload your stats to a server to view your history online",
+		position = 10,
+		closedByDefault = true
+	)
+	String statsSection = "statsSection";
+
+	@ConfigItem(
+		keyName = "uploadStats",
+		name = "Upload stats",
+		description = "When on, this plugin sends your alch stats (cast counts, profit, alched item "
+			+ "names, and Magic XP/level) to the Stats server URL below so you can view your history "
+			+ "on the web dashboard. Your account password is never sent. This is OFF by default.",
+		section = statsSection,
+		position = 0
+	)
+	default boolean uploadStats()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "statsApiUrl",
+		name = "Stats server URL",
+		description = "Base URL of the Alch Assistant stats server (e.g. https://stats.example.com).",
+		section = statsSection,
+		position = 1
+	)
+	default String statsApiUrl()
+	{
+		return "";
+	}
+
+	@ConfigItem(
+		keyName = "statsApiKey",
+		name = "Stats API key",
+		description = "The API key from your dashboard account. Paste it here to link uploads to your account.",
+		section = statsSection,
+		position = 2,
+		secret = true
+	)
+	default String statsApiKey()
+	{
+		return "";
+	}
 }
