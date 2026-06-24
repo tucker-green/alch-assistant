@@ -1,0 +1,20 @@
+# Gradle / build output
+.gradle/
+build/
+out/
+
+# IntelliJ / Eclipse
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+bin/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local dev scaffolding generated in this workspace (portable JDK/Gradle,
+# helper scripts and their logs). These must NOT be published.
+_*
