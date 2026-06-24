@@ -41,14 +41,11 @@ total           = profit per alch × number of casts
 Nature rune cost is omitted if you turn off **Subtract nature rune cost** in the
 config.
 
-## Building / running (developer mode)
+## Getting started
 
-Standard RuneLite Plugin Hub layout. Open the project in IntelliJ IDEA (Java 11),
-let it import the Gradle project, then run the `run` Gradle task (or
-`GeAlchProfitPluginTest.main()`) to launch a developer-mode RuneLite client with
-the plugin loaded. If you use a Jagex account, follow the RuneLite
-[Using Jagex Accounts](https://github.com/runelite/runelite/wiki/Using-Jagex-Accounts)
-guide to log in to the dev client.
+Install **Alch Assistant** from the RuneLite Plugin Hub, then open its side panel
+(the gold "A" icon). Buy something on the Grand Exchange and high alch it to start
+tracking. For items you already own, set the buy price manually as described above.
 
 ## Notes
 
